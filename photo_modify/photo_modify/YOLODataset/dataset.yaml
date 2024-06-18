@@ -1,0 +1,5 @@
+train: C:\photo_modify\YOLODataset/images/train/
+val: C:\photo_modify\YOLODataset/images/val/
+test: C:\photo_modify\YOLODataset/images/test/
+nc: 6
+names: ["battery", "can", "glass", "paper", "plastic", "vinyl"]
