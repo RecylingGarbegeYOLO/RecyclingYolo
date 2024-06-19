@@ -1,127 +1,188 @@
-import torch
-import tkinter
-import numpy as np
-from ultralytics import YOLO
 import cv2
+import sys
+import TrackerCam
+import numpy as np
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from ultralytics import YOLO
+from datetime import datetime
+import threading
 
-# object 인지(분류) --> 추적
-# url = 'https://www.youtube.com/watch?v=sD9gTAFDq40'
-# video = pafy.new(url)
-# best = video.getbest(preftype="mp4")
-
-winWidth = 1280
-winHeight = 720
-model = YOLO("./Runs-Garbage/runs/detect/train/weights/best.pt")
-labels = ['Battery', 'Can', 'Glass', 'Paper', 'Plastic', 'Vinyl']
-cap = cv2.VideoCapture(0)       # webcam
-names = model.names             # model classes(labels)
-
-CONFIDENCE_THRESHOLD = 0.6
-CONFIDENCE_OVERLAP = 0.6
-GREEN = (0, 255, 0)
-WHITE = (255, 255, 255)
-
-custumBbox = None
-drawing = False
-start_point = None
-
-# overlab
-overlabX1 = 0
-overlabY1 = 0
-overlabX2 = 0
-overlabY2 = 0
-overlabArea = 0
-overlabPercent = 0.0
-
-# set trashcan area (bb)
-trashcanX1 = int(winWidth*0.1) # left
-trashcanY1 = int(winHeight*0.1) # top
-trashcanX2 = int(winWidth*0.5) # right
-trashcanY2 = int(winHeight*0.5) # bottom
-trashcanXY = (trashcanX1, trashcanY1)
-trashcanXY2 = (trashcanX2, trashcanY2)
-trashcanArea = (trashcanX2-trashcanX1)*(trashcanY2-trashcanY1)
-
-GRAY = (176, 176, 176)
-title = "garbage recycle"
-
-# 쓰레기 종류별 라벨 색깔 지정
-RED = (255, 66, 66)
-ORANGE = (255, 159, 41)
-GREEN = (10, 140, 27)
-BLUE = (0, 0, 255)
-PURPLE = (108, 31, 163)
-PINK = (240, 93, 196)
-colors = [RED, ORANGE, GREEN, BLUE, PURPLE, PINK]
-
-# custom window
-cv2.namedWindow(title)
-cv2.resizeWindow(title, winWidth, winHeight)
-
-def use_result(results):
+class MyApp(QWidget):
+    prjTitle = "Garbage Recycling Project"
+    nowFrame = None
     
-    # if results exist and results[0] is not null
-    if (results and results[0]) :
-        bboxes = np.array(results[0].boxes.xyxy.cpu(), dtype="int")         # bb xy
-        classes = np.array(results[0].boxes.cls.cpu(), dtype="int")         # class index numpy array
-        confidence = np.array(results[0].boxes.conf.cpu(), dtype="float")
-        pred_box = zip(classes, bboxes, confidence)
+    def __init__(self):
+        super().__init__()
+
+        self.mainLayout = QHBoxLayout()
+        self.menuFrame = QFrame()
+        self.stack = QStackedWidget()
+    
+        self.setStyleSheet("background-color: #ffffff;")
+        self.initSplitter()
         
-        for cls, bbox, confidence in pred_box:
-            if confidence < CONFIDENCE_THRESHOLD: continue
-            (x, y, x2, y2) = bbox
-            label = f"{names[cls]}: {confidence:.2f}"
-            
-            # calculate overlab area
-            overlabX1 = max(trashcanX1, x)
-            overlabX2 = min(trashcanX2, x2)
-            overlabY1 = max(trashcanY1, y)
-            overlabY2 = min(trashcanY2, y2)
-            
-            # if not overlab
-            if overlabX2 <= overlabX1 or overlabY2 <= overlabY1:
-                overlabPercent = 0.0
-            else:
-                overlabArea = (overlabX2-overlabX1)*(overlabY2-overlabY1)
-                overlabPercent = overlabArea/trashcanArea
-                
-                if(overlabPercent < CONFIDENCE_OVERLAP):
-                    print(f"low overlap: {overlabPercent*100}%")
-                    overlabPercent = 0.0
-                
-            if(overlabPercent != 0.0):
-                print("bounding box (",x,y,x2,y2,") has class ", cls,
-                  " which is ", names[cls], " with confidence ", confidence)     # printing detect result
-                print(f"{names[cls]} is in Trashcan with Overlap: {overlabPercent*100}% !!!")
-            else:
-                print("bounding box (",x,y,x2,y2,") has class ", cls,
-                  " which is ", names[cls], " with confidence ", confidence)     # printing detect result
-            cv2.rectangle(frame, (x,y), (x2,y2), (0,0,255), 2)      # bounding box drawing
-            cv2.putText(frame, label, (x, y-5), cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255), 2)  # class name  
-                 
-    return
+        # 메뉴 생성
+        self.menuFrame.setLayout(self.initMenuUI())
+        
+        # 메인 스택 생성        
+        self.mainLayout.addWidget(self.splitter)
+        self.stack.addWidget(self.initMainWindow())
+        self.stack.addWidget(self.initTrackerWindow())
+        self.stack.addWidget(self.initPatrolWindow())
+        self.stack.addWidget(self.initSettingsWindow())
+        self.stack.setCurrentWidget(self.stack.widget(0))
 
-# run web cam
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-    results = model(frame)
+        # 웹캠 화면 설정
+        self.trackerCam = TrackerCam.YoloCam()        
+        self.timer = QTimer()
+        self.trackerCam.setCamSize(1080, 480)  # 해상도를 640x480으로 설정
+        self.trackerThread = None
+
+        self.setLayout(self.mainLayout)
+        
+        self.setWindowTitle(self.prjTitle)
+        self.setGeometry(500, 500, 1080, 720)
+        self.show()
     
-    cv2.rectangle(frame, trashcanXY, trashcanXY2, GRAY, 3)      # trashcan bounding box drawing
-    use_result(results)
-    cv2.imshow(title, frame)
-    key = cv2.waitKey(1)
-    if key == 27:           # ESC
-        break
     
-cap.release()
-cv2.destroyAllWindows()
+    def initSplitter(self):
+        self.splitter = QSplitter(Qt.Horizontal)        
+        self.splitter.addWidget(self.menuFrame)
+        self.splitter.addWidget(self.stack)
+        self.splitter.setSizes([0.1 * self.splitter.size().width(), 0.9 * self.splitter.size().width()])
+        self.splitter.setHandleWidth(0)
+        self.splitter.setCollapsible(0, False)
+        self.splitter.setCollapsible(1, False)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 0)
+        self.splitter.setStyleSheet("QSplitter::handle { background-color: #6E6E6E; border: 2px solid #6E6E6E; }")
+                
+        
+    def initMenuUI(self):
+        menuLayout = QVBoxLayout()
+        
+        mainBtn = QPushButton("Main", self)
+        mainBtn.clicked.connect(lambda: self.showNewWindow(0))
+        
+        trackerBtn = QPushButton("Run Tracker", self)
+        trackerBtn.clicked.connect(lambda: self.showNewWindow(1))
+        
+        patrolBtn = QPushButton("Patrol Gallery", self)
+        patrolBtn.clicked.connect(lambda: self.showNewWindow(2))
+        
+        settingsBtn = QPushButton("Settings", self)
+        settingsBtn.clicked.connect(lambda: self.showNewWindow(3))
+        
+        menuLayout.addWidget(mainBtn)
+        menuLayout.addWidget(trackerBtn)
+        menuLayout.addWidget(patrolBtn)
+        menuLayout.addWidget(settingsBtn)
+        
+        return menuLayout
+    
+    
+    def initMainWindow(self):
+        mainFrame = QFrame()
+        mainLayout = QVBoxLayout()
+        mainText = QPushButton("Hello", self)
+        
+        mainLayout.addWidget(mainText)
+        mainFrame.setLayout(mainLayout)
+        
+        return mainFrame
+    
+    
+    def initTrackerWindow(self):
+        trackerFrame = QFrame()
+        trackerLayout = QVBoxLayout()
+        self.wcLabel = QLabel()
+        self.wcLabel.setAlignment(Qt.AlignCenter)
+        
+        trackerLayout.addWidget(self.wcLabel)
+        trackerFrame.setLayout(trackerLayout)
+        
+        return trackerFrame
+    
+    
+    def runTracker(self):
+        while self.trackerCam.cap.isOpened():
+            ret, frame = self.trackerCam.run()
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h,w,c = frame.shape
+                qImg = QImage(frame.data, w, h, w*c, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qImg)
+                self.wcLabel.setPixmap(pixmap)
+            else:
+                QMessageBox.about(self, "Error", "Cannot read frame.")
+            cv2.waitKey(1)  # This gives some time to process each frame, adjust as necessary
+            
+    
+    def destroyTrackerWindow(self):
+        self.trackerCam.cap.release()
+        cv2.destroyAllWindows()
+    
+    
+    def initPatrolWindow(self):
+        patrolFrame = QFrame()
+        patrolLayout = QVBoxLayout()
+        
+        mainText = QPushButton("Patrol", self)     
+        patrolLayout.addWidget(mainText)
+        patrolFrame.setLayout(patrolLayout)
+        
+        return patrolFrame
+    
+    
+    def initSettingsWindow(self):
+        settingsFrame = QFrame()
+        settingsLayout = QVBoxLayout()
+        
+        mainText = QPushButton("Settings", self)
+        settingsLayout.addWidget(mainText)
+        settingsFrame.setLayout(settingsLayout)
+        
+        return settingsFrame
+    
 
+    def showNewWindow(self, index):
+        if self.stack.currentIndex() == index:
+            return
+        # 웹캠 화면에서 다른 화면으로 전환할 경우 웹캠 종료
+        elif self.stack.currentIndex() == 1:
+            self.timer.stop()
+            self.trackerCam.cap.release()
+            cv2.destroyAllWindows()
+            print("DESTROY WINDOWS!!!!!")
+            if self.trackerThread is not None:
+                self.trackerThread.join()  # Wait for the thread to finish
+            
+        self.stack.setCurrentIndex(index)
+        
+        if index == 1:
+            self.trackerCam.cap = cv2.VideoCapture(0)
+            self.timer.start(100)   # update webcam frame every 0.1 seconds
+            if self.trackerThread is None or not self.trackerThread.is_alive():
+                self.trackerThread = threading.Thread(target=self.runTracker)
+                self.trackerThread.start()
 
-"""
-모델 실행
-쓰레기 분류 값 받아오기
-쓰레기 트래킹
+    
+    
+    def closeEvent(self, event):
+        result = QMessageBox.question(self, self.prjTitle, "Are you sure to Quit?")
+        
+        if result == QMessageBox.Yes:
+            if self.trackerThread is not None:
+                self.trackerThread.join()  # Wait for the thread to finish
+            event.accept()
+        else:
+            event.ignore()
 
-"""
+    
+    
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    myApp = MyApp()
+    sys.exit(app.exec_())
