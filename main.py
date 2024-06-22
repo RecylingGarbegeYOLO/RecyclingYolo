@@ -200,13 +200,13 @@ class MyApp(QWidget):
 
     def initPatrolWindow(self):
         patrolFrame = QFrame()
-        patrolLayout = QVBoxLayout()
+        patrolLayout = QVBoxLayout() 
         
         # 스크롤 영역
         scrollArea = QScrollArea()
         scrollArea.setWidgetResizable(True)
         patrolLayout.addWidget(scrollArea)
-        
+         
         # 그리드 레이아웃 생성 (사진 갤러리)
         gridLayout = QGridLayout()
         gridLayout.setHorizontalSpacing(10)
