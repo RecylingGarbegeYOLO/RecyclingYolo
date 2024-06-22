@@ -5,86 +5,100 @@
 - 32202970 윤예진
 <br><br>
 
-### 1. 프로젝트 개요
-현대에는 일상생활 속에서 발생하는 쓰레기를 올바르게 처리하고 재사용하고자 분리수거를 중시하고 있다.  
-하지만 이를 제대로 지키지 않거나, 어떤 쓰레기통에 버려야 할지 구분이 안되어 분리수거가 제대로 이루어지지 않는 경우가 있다.  
-따라서 이러한 상황을 개선하고자 **YOLOv8 모델**을 사용해 쓰레기의 종류를 구별하고 **올바른 곳에 쓰레기를 버리도록 알려주는 시스템**을 구현하고자 한다.  
+##### Demonstration Video  
+[https://youtu.be/FZF8nJuzElo](https://youtu.be/FZF8nJuzElo?si=YLXfh1sURS7wopdC)
+<br><br><br>
+
+### 1. Project Overview
+Nowadays, separate collection is emphasized in order to properly dispose of and reuse waste generated in everyday life.  
+However, there are cases in which separate collection is not carried out properly because it is not properly followed or it is not possible to distinguish which trash can to throw in.  
+Therefore, in order to improve this situation, we want to implement a system that uses the **YOLOv8 model** to distinguish the types of garbage and **to inform them to throw the garbage in the right place**.  
 <br><br>
-### 2. 역할분담
-- **데이터 수집 및 라벨링, PPT 제작 담당** : 32222443 신지영
+### 2. Role Distribution
+- **Data Collection and Labeling, PPT Creation:** : 32222443 신지영
 
-- **모델 트레이닝 및 평가, 발표 담당** : 32221604 Vasilya
+- **Model Training and Evaluation, Presentation** : 32221604 Vasilya
 
-- **프로그램 구현, 시연 영상 담당** : 32202970 윤예진  
+- **Program Implementation, Demonstration Video** : 32202970 윤예진  
 <br><br>
 
-### 3. 구현 과정
-#### 1) 데이터 범주 선정
-분류 대상 : 총 6개 종류 (배터리, 비닐, 캔, 플라스틱, 유리, 종이)  
+### 3. Implementation Process
+#### 1) Selection of Data Categories
+Classification : Total of 6 types (battery, vinyl, can, plastic, glass, paper)  
 <br>
-#### 2) 데이터 수집
-각 분류 당 약 300개의 이미지의 수집 후 라벨링  
+#### 2) Data Collection
+Collection of approximately 300 images per category followed by labeling   **(Garbage 1, Runs-Garbage Directory)**  
+- Open Data References
+- https://universe.roboflow.com/king-mongkuts-university-of-technology-north-bangkok-fgqbi/yolo-recycle-trash-detection/dataset/3/images
+- https://www.kaggle.com/
+<br><br>
+#### 3) Model Training
+Training the data using the YOLOv8 model   **(1차: output Directory / 2차: Garbage 1, Runs-Garbage Directory)**
 <br>
-#### 3) 모델 트레이닝
-YOLOv8 모델을 활용하여 데이터 학습
-<br>
-- 1차 학습 후 분류 성능 평가 결과 특정 분류(배터리, 비닐)에 대해 분류 성능이 비교적 낮았음.
-- 성능 저하의 원인을 팀원들과 논의해본 결과, 예를 들어 플라스틱의 경우 형태가 다양하므로 더 많은 데이터 셋을 추가하여 학습시킬 필요성을 느낌.
-- 성능 개선을 위해 배터리, 비닐에 대해 데이터셋을 추가하고 다른 분류의 데이터셋도 추가하여 모델 트레이닝하였음.
-- 2차 학습 후 분류 성능 평가 결과 1차에 비해 배터리, 비닐의 분류 성능이 개선된 것을 확인하였음.  
+- After the first training, the evaluation of classification performance showed relatively lower performance for specific categories (battery, vinyl).
+- Upon discussing the cause of the performance degradation with team members, it was found that for categories like plastic, which have diverse shapes, there was a need to add more datasets for training.
+- To improve performance, additional datasets for battery and vinyl were collected and other category datasets were also added for model training.
+- After the second training, the evaluation of classification performance showed improvement in the classification of battery and vinyl compared to the first training.  <br><br>
 <img width="600" alt="confusion_matrix_normalized" src="https://github.com/RecylingGarbegeYOLO/RecyclingYolo/assets/68535398/715b2582-a8ff-4712-ad47-9a106628bc48">
 <br><br>
 
-### 4. 프로그램 소개
-#### 0) 구성
+### 4. Program Introduction
+#### 0) Structure
 ##### Main.py
-- Main 소스 코드, UI 구성 담당
-- Main, Cam 1, Cam 2, Patrol Gallery 총 4개의 화면으로 구성  
-- 메뉴의 버튼을 통해 각 화면으로 이동 가능함  <br><br>
+- Main source code and **UI**
+- Consists of 4 screens: Main, Cam 1, Cam 2, Patrol Gallery  
+- Possible to move to screen via buttons in the menu  <br><br>
 
 ##### TrackerCam.py
-- YOLOv8 모델을 통한 처리 및 웹캠 실행 담당
-- 학습된 YOLOv8 모델 중 최적의 결과(best.pt)를 불러와 객체 인식
-- 인식된 객체는 6개의 쓰레기 중 하나로 분류
-- 웹캠 화면에 맞추어 쓰레기통 영역을 화면에 그리고 설정
-- 인식된 객체가 어떤 쓰레기인지 바운딩 박스로 표시
-- 쓰레기통과 인식된 객체의 겹침 정도를 계산하여 잘못된 쓰레기통에 들어갔을 경우 화면에 잘못 되었음을 표시
+- Processing with YOLOv8 model and running the webcam
+- Loads the best-performing model (best.pt) from trained YOLOv8 models for object detection
+- Classifies detected objects into one of 6 types of trash
+- Draws trash bin areas on the webcam screen and configures them according to the webcam view
+- Displays bounding boxes to indicate which type of trash an object belongs to
+- Calculates the degree of overlap between the trash bin and the detected object to indicate if it was disposed incorrectly
 <br><br>
 
-#### 1) Main 화면
-로고 이미지와 함께 프로그램의 각 메뉴를 간단히 설명하는 화면  <br><br>
+#### 1) Main Screen
+Screen that explains each menu of the program with a logo image.  <br><br>
 <img width="600" alt="main" src="https://github.com/RecylingGarbegeYOLO/RecyclingYolo/assets/68535398/d7616fe2-f655-40f1-9dad-3ac1a792b02c"><br><br>
 
-#### 2) Cam 1, Cam 2 화면
-Cam 1(배터리, 비닐, 캔, 플라스틱, 유리), Cam 2(종이) 각 캠 화면마다 다른 종류의 쓰레기통을 웹캠을 통해 촬영함.  
-각 화면에 있는 각각의 쓰레기통은 Opencv로 영역을 지정하고, 웹캠을 통해 인식된 쓰레기는 바운딩 박스를 통해 화면에 표시한다.  
+#### 2) Cam 1, Cam 2 Screen
+Cam 1 (battery, vinyl, can, plastic, glass), Cam 2 (paper) shoots different types of trash bins through a webcam on each cam screen.  
+Each trash bin on each screen is defined using Opencv, and recognized trash through the webcam is displayed on the screen using a bounding box.  <br><br>
 
-- 객체 최소 인식 정도
+- Minimum object recognition threshold
   - CONFIDENCE_THRESHOLD = 0.4
-- 객체 최소 영역 겹침도
+- Minimum area overlap for objects
   - CONFIDENCE_OVERLAP = 0.4  
 
-##### 객체 최소 인식 정도
-쓰레기 객체는 객체 최소 인식 정도 이상이라면 화면에 바운딩 박스로 표기한다.  <br><br>
+##### Minimum object recognition threshold
+Trash objects are displayed on the screen with a bounding box if they meet or exceed the minimum object recognition threshold.  <br><br>
 
-##### 객체 최소 영역 겹침도
-쓰레기 객체와 쓰레기통의 교집합 영역을 구한 뒤, 쓰레기 객체로 나누어 영역 겹침도를 계산한다.  
-객체 최소 영역 겹침도 이상이라면 사용자가 그 쓰레기통에 쓰레기를 넣었다고 판단한다.  
-이때, 잘못된 쓰레기통에 넣었을 경우(쓰레기의 종류와 쓰레기통이 일치하지 않을 경우) 사용자에게 빨간색 바운딩 박스로 잘못 분리수거 했음을 알린다.  <br>
+##### Minimum area overlap for objects
+After determining the intersection area between the trash object and the trash bin, the overlap ratio is calculated by dividing the area of the trash object by the intersection area.  
+If this overlap ratio meets or exceeds the minimum overlap threshold, it is determined that the user has put the trash into the correct bin.  
+
+If the trash is put into the wrong bin (i.e., the type of trash does not match the type of bin), a red bounding box notifies the user that the trash has been improperly sorted.  <br>
 
 <img width="600" alt="cam1" src="https://github.com/RecylingGarbegeYOLO/RecyclingYolo/assets/68535398/0742354c-5b80-4eb6-9038-70d08fdcfd6f"><br><br>
 <img width="600" alt="cam2" src="https://github.com/RecylingGarbegeYOLO/RecyclingYolo/assets/68535398/0ca0fca2-2806-40ce-927b-0dc2061103cb"><br><br>
 
 
-#### 3) Patrol Gallery 화면
-각 캠 화면에서 사용자가 분리수거를 잘못 하였을 경우(잘못된 쓰레기통에 넣었을 경우) 웹캠의 화면을 캡처하여 patrol 갤러리에 저장한다.  
-Patrol Gallery 화면에서 저장된 사진을 확인 가능하며, 클릭 시 사진을 확대하여 확인할 수 있다. <br>
+#### 3) Patrol Gallery Screen
+If the user improperly sorts the trash into the wrong bin on each camera screen, the webcam captures the screen and saves it to the Patrol Gallery.  
+The Patrol Gallery screen allows users to view the saved photos, and clicking on a photo enlarges it for detailed inspection.  <br>
 <img width="600" alt="patrol" src="https://github.com/RecylingGarbegeYOLO/RecyclingYolo/assets/68535398/56023bc0-a78c-4277-91d0-d006bef9ebfb"><br><br>
 
 
-### 5. 결과 및 시연 영상
+### 5. Results and Demonstration Video
 [https://youtu.be/FZF8nJuzElo](https://youtu.be/FZF8nJuzElo?si=YLXfh1sURS7wopdC) <br><br>
 
-### 6. 후기
-2차 트레이닝 후 모델 성능이 개선된 것을 확인하였지만 시연 영상의 Video 1과 Video 2에서 객체 인지 정도에서 차이가 존재함을 확인할 수 있다. Video 1 은 Video 2에 비해 배경이 단순하지만 Video 2는 실제 분리수거장에서 촬영을 하여 배경으로 인해 비교적 객체가 인식율이 떨어졌다. 또한, 원래는 쓰레기 통과 웹캠을 최대한 가까이 하여 쓰레기 객체와 웹캠 간의 거리를 줄이려 했다. 그러나 촬영한 분리수거장의 구조 상 불가능하여 쓰레기통과 거리를 어느 정도 두고 시연 영상 촬영을 하였다. 이로 인해 거리가 멀어지며 쓰레기 객체가 비교적 작게 보여 배경과 구분이 어려워져 객체 인식율이 비교적 낮아졌다고 추측한다. 이러한 점을 고려하여 TrackerCam.py의 CONFIDENCE_THRESHOLD 를 조정하여 촬영을 진행하였다. 촬영 후 사진들이 저장된 Patrol Gallery를 확인하면 (patrol 디렉토리) 객체가 잘못 검출 되었음을 확인할 수 있다. 프로젝트 진행 동안 모델을 학습시키고 검증하면서, 트레이닝 성능과 실제 환경에서의 성능에는 차이가 존재할 수 있음을 느낄 수 있었다. 이러한 점을 개선하기 위해, 데이터 셋을 더 추가하여 학습 후 주변 배경의 복잡도에 관계 없이 객체가 인식 되도록 검증하는 단계를 거칠 필요가 있다. 이러한 성능 개선이 진행된다면 아파트 단지 분리수거장, 학교 건물 내 분리 수거함 등등의 장소에 설치하여 사람들의 올바른 분리수거를 도울 수 있을 것으로 기대된다.
+### 6. Conclusion and Reflections
+After the second round of training, I confirmed an improvement in the model's performance. However, there are noticeable differences in object recognition between Video 1 and Video 2 during the demonstration. Video 1 has a simpler background compared to Video 2, which was recorded in an actual recycling center where the background complexity led to lower object recognition rates. Originally, I attempted to position the webcam as close to the trash bins as possible to minimize the distance between the trash objects and the webcam. Due to the structural constraints of the recycling center, I had to maintain a certain distance between the trash bins and the webcam during the demonstration. This increased distance made the trash objects appear relatively small, making it difficult to distinguish them from the background and thus lowering the object recognition rate.  <br>
+
+Taking these factors into account, I adjusted the CONFIDENCE_THRESHOLD in TrackerCam.py to conduct the recordings. Upon reviewing the Patrol Gallery (patrol directory) where the captured photos are stored after recording, it was evident that some objects were incorrectly detected.  <br>
+
+Throughout the project, I realized that there can be discrepancies between the performance during training and the performance in real-world environments. To address this, it is necessary to further improve the model by adding more datasets and validating it to ensure that objects are recognized regardless of the complexity of the surrounding background.  <br>
+
+With these performance improvements, I anticipate that the system can be deployed in places such as apartment complex recycling centers or school buildings' recycling bins, helping people to correctly separate their waste.  <br>
 <br><br>
