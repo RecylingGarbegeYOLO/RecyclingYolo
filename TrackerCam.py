@@ -1,123 +1,182 @@
+import os
 import torch
+import datetime
 import numpy as np
 from ultralytics import YOLO
 import cv2
 
-"""
-1. THRESHOLD 조정
-2. TrashCan 테스트 이미지 가져오기, 테스트 이미지에 맞춰서 쓰레기통 도형 쓰레기 종류마다 생성
-3. 해당 객체 bb에 경고 메세지? 띄우기
-3-1. 제대로 버릴 경우 bb에 엄지척 메세지 띄우기?
-4. 마우스 클릭으로 쓰레기통 설정하는 기능..
-5. 쓰레기 잘못 버렸을 경우 해당 화면 캡처 후 Gallery에 보관(이후 제대로 버렸을 시 해당 객체 삭제)
-6. WebCam 화면에 현재 시간 표시
-7. 
-"""
 
-
-
+class TrashCan:
+    def __init__(self, x1, y1, x2, y2, label, color):
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+        self.label = label
+        self.area = ((self.x2 - self.x1) * (self.y2 - self.y1))
+        self.color = color
+        
+    def draw(self, frame):
+        cv2.rectangle(frame, (self.x1, self.y1), (self.x2, self.y2), self.color, 3)
+        cv2.putText(frame, self.label, (self.x1, self.y1 - 5), cv2.FONT_HERSHEY_PLAIN, 1, self.color, 2)
+        
 
 class YoloCam:
-    def __init__(self):
-        self.winWidth = 1280
-        self.winHeight = 720
+    colors = [(0, 149, 255), (0, 199, 86), (219, 235, 0), (255, 0, 0), (255, 0, 149), (187, 0, 255)]
+    
+    def __init__(self, win_width=1280, win_height=720):
+        self.win_width = win_width
+        self.win_height = win_height
         self.model = YOLO("./Runs-Garbage/runs/detect/train/weights/best.pt")
-        self.names = self.model.names             # model classes(labels)
+        self.names = self.model.names       # ['Battery', 'Can', 'Glass', 'Paper', 'Plastic', 'Vinyl']
         self.cap = None
 
-        self.CONFIDENCE_THRESHOLD = 0.0
-        self.CONFIDENCE_OVERLAP = 0.6
+        self.CONFIDENCE_THRESHOLD = 0.4
+        self.CONFIDENCE_OVERLAP = 0.4
 
-        self.custumBbox = None
-        self.drawing = False
-        self.start_point = None
-
-        # overlab
-        self.overlabX1 = 0
-        self.overlabY1 = 0
-        self.overlabX2 = 0
-        self.overlabY2 = 0
-        self.overlabArea = 0
-        self.overlabPercent = 0.0
-
-        # set trashcan area (bb)
-        self.trashcanX1 = int(self.winWidth*0.1) # left
-        self.trashcanY1 = int(self.winHeight*0.1) # top
-        self.trashcanX2 = int(self.winWidth*0.5) # right
-        self.trashcanY2 = int(self.winHeight*0.5) # bottom
-        self.trashcanXY = (self.trashcanX1, self.trashcanY1)
-        self.trashcanXY2 = (self.trashcanX2, self.trashcanY2)
-        self.trashcanArea = (self.trashcanX2-self.trashcanX1)*(self.trashcanY2-self.trashcanY1)
-
-        self.title = "garbage recycle"
+        # Trash can area
+        batteryBin = TrashCan(
+            int(self.win_width * 0.06),
+            int(self.win_height * 0.4),
+            int(self.win_width * 0.13),
+            int(self.win_height * 0.7),
+            self.names[0],
+            self.colors[0]
+        )
         
-        # 쓰레기 종류별 라벨 색깔 지정
-        RED = (255, 66, 66)
-        ORANGE = (255, 159, 41)
-        GREEN = (10, 140, 27)
-        BLUE = (0, 0, 255)
-        PURPLE = (108, 31, 163)
-        PINK = (240, 93, 196)
-        self.colors = [RED, ORANGE, GREEN, BLUE, PURPLE, PINK]
+        canBin = TrashCan(
+            int(self.win_width * 0.13),
+            int(self.win_height * 0.4),
+            int(self.win_width * 0.2),
+            int(self.win_height * 0.7),
+            self.names[1],
+            self.colors[1]
+        )
+        
+        glassBin = TrashCan(
+            int(self.win_width * 0.2),
+            int(self.win_height * 0.4),
+            int(self.win_width * 0.3),
+            int(self.win_height * 0.7),
+            self.names[2],
+            self.colors[2]
+        )
+        
+        paperBin = TrashCan(
+            int(self.win_width * 0.2),
+            int(self.win_height * 0.3),
+            int(self.win_width * 0.4),
+            int(self.win_height * 0.7),
+            self.names[3],
+            self.colors[3]
+        )
+        
+        plasticBin = TrashCan(
+            int(self.win_width * 0.3),
+            int(self.win_height * 0.4),
+            int(self.win_width * 0.4),
+            int(self.win_height * 0.7),
+            self.names[4],
+            self.colors[4]
+        )
+        
+        vinylBin = TrashCan(
+            int(self.win_width * 0.4),
+            int(self.win_height * 0.4),
+            int(self.win_width * 0.5),
+            int(self.win_height * 0.7),
+            self.names[5],
+            self.colors[5]
+        )
+        
+        self.binCam1 = [batteryBin, canBin, glassBin, plasticBin, vinylBin]
+        self.binCam2 = [paperBin]
+        
 
-        # custom window
-        # cv2.namedWindow(self.title)
-        # cv2.resizeWindow(self.title, self.winWidth, self.winHeight)
-                    
-        
-    def use_result(self, results):
-        
-        # if results exist and results[0] is not null
-        if (results and results[0]) :
-            bboxes = np.array(results[0].boxes.xyxy.cpu(), dtype="int")         # bb xy
-            classes = np.array(results[0].boxes.cls.cpu(), dtype="int")         # class index numpy array
-            confidence = np.array(results[0].boxes.conf.cpu(), dtype="float")
-            pred_box = zip(classes, bboxes, confidence)
-            
-            for cls, bbox, confidence in pred_box:
-                if confidence < self.CONFIDENCE_THRESHOLD: continue
-                (x, y, x2, y2) = bbox
+    def use_result(self, results, camNum):
+        nowTime = str(datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        cv2.putText(self.frame, nowTime,
+                        (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 1, cv2.LINE_AA)
+        if results and results[0]:
+            bboxes = np.array(results[0].boxes.xyxy.cpu(), dtype="int")
+            classes = np.array(results[0].boxes.cls.cpu(), dtype="int")
+            confidences = np.array(results[0].boxes.conf.cpu(), dtype="float")
+                     
+            for cls, bbox, confidence in zip(classes, bboxes, confidences):
+                # draw now time
+                if confidence < self.CONFIDENCE_THRESHOLD:
+                    continue
+                
+                (x1, y1, x2, y2) = bbox
                 label = f"{self.names[cls]}: {confidence:.2f}"
                 
-                # calculate overlab area
-                overlabX1 = max(self.trashcanX1, x)
-                overlabX2 = min(self.trashcanX2, x2)
-                overlabY1 = max(self.trashcanY1, y)
-                overlabY2 = min(self.trashcanY2, y2)
+                overlaps = []
+                if (camNum == 1):
+                    for bin in self.binCam1:
+                        overlaps.append(self.calOverlap(bbox, bin))
+                elif(camNum == 2):
+                    for bin in self.binCam2:
+                        overlaps.append(self.calOverlap(bbox, bin))
                 
-                # if not overlab
-                if overlabX2 <= overlabX1 or overlabY2 <= overlabY1:
-                    overlabPercent = 0.0
+                maxOverlap = max(overlaps)
+                    
+                 # 일정 겹침 정도 이상이라면
+                if maxOverlap >= self.CONFIDENCE_OVERLAP:
+                    if(overlaps.index(maxOverlap) == cls):
+                        cv2.rectangle(self.frame, (x1, y1), (x2, y2), self.colors[cls], 2)
+                        cv2.putText(self.frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_PLAIN, 2, self.colors[cls], 2)
+                    # wrong classification
+                    else:
+                        cv2.rectangle(self.frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                        cv2.putText(self.frame, label+" is not "+self.names[overlaps.index(maxOverlap)], (x1, y1 - 5), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+                        # 디렉토리 존재 여부 확인 및 생성
+                        patrol_dir = "./patrol"
+                        if not os.path.exists(patrol_dir):
+                            os.makedirs(patrol_dir)
+                        
+                        image_path = f"{patrol_dir}/{nowTime}_{self.names[cls]}.jpeg"
+                        cv2.imwrite(image_path, self.frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                        print(f"Image saved at: {image_path}")
                 else:
-                    overlabArea = (overlabX2-overlabX1)*(overlabY2-overlabY1)
-                    overlabPercent = overlabArea/self.trashcanArea
-                    
-                    if(overlabPercent < self.CONFIDENCE_OVERLAP):
-                        print(f"low overlap: {overlabPercent*100}%")
-                        overlabPercent = 0.0
-                    
-                if(overlabPercent != 0.0):
-                    print("bounding box (",x,y,x2,y2,") has class ", cls,
-                    " which is ", self.names[cls], " with confidence ", confidence)     # printing detect result
-                    print(f"{self.names[cls]} is in Trashcan with Overlap: {overlabPercent*100}% !!!")
-                else:
-                    print("bounding box (",x,y,x2,y2,") has class ", cls,
-                    " which is ", self.names[cls], " with confidence ", confidence)     # printing detect result
-                cv2.rectangle(self.frame, (x,y), (x2,y2), (0,0,255), 2)      # bounding box drawing
-                cv2.putText(self.frame, label, (x, y-5), cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255), 2)  # class name  
-                    
-        return
+                    cv2.rectangle(self.frame, (x1, y1), (x2, y2), self.colors[cls], 2)
+                    cv2.putText(self.frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_PLAIN, 2, self.colors[cls], 2)
+            
     
-    def run(self):
-        # run web cam
-        ret, self.frame = self.cap.read()
+    def calOverlap(self, bbox, trashCan):
+        (x1, y1, x2, y2) = bbox
+        overlab_x1 = max(trashCan.x1, x1)
+        overlab_x2 = min(trashCan.x2, x2)
+        overlab_y1 = max(trashCan.y1, y1)
+        overlab_y2 = min(trashCan.y2, y2)
+        
+        if overlab_x2 > overlab_x1 and overlab_y2 > overlab_y1:
+            overlab_area = (overlab_x2 - overlab_x1) * (overlab_y2 - overlab_y1)
+            object_area = (x2 - x1) * (y2 - y1)
+            overlab_percent = overlab_area / object_area
+            return overlab_percent
+        else:
+            return 0
+                    
+
+
+    def run(self, camNum):
+        ret, frame = self.cap.read()        
+        self.frame = frame
         results = self.model(self.frame)
-        GRAY = (176, 176, 176)
-        cv2.rectangle(self.frame, self.trashcanXY, self.trashcanXY2, GRAY, 3)      # trashcan bounding box drawing
-        self.use_result(results)
+        
+        if(camNum==1):
+            for bin in self.binCam1:
+                bin.draw(self.frame)
+                
+        if(camNum==2):
+            for bin in self.binCam2:
+                bin.draw(self.frame)
+        
+        self.use_result(results, camNum)
         key = cv2.waitKey(1)
         return ret, self.frame
-    
+
+
     def setCamSize(self, width, height):
-        self.winWidth = width
-        self.winWidth = height
+        self.win_width = width
+        self.win_height = height
